@@ -35,7 +35,6 @@ cli_quota_usage/
 ├── install.ps1             # สคริปต์ติดตั้งอัตโนมัติ (คัดลอกไฟล์และอัปเดต settings.json)
 ├── settings.example.json   # ตัวอย่างคอนฟิก settings.json
 ├── statusline_setup_guide.txt # เอกสารคู่มืออ้างอิงเดิม
-├── LICENSE                 # MIT License
 └── README.md               # เอกสารแนะนำการใช้งาน
 ```
 
@@ -102,9 +101,3 @@ agy
 ### คำสั่งควบคุม Statusline ภายใน CLI
 - ปิดการแสดงผลแถบ: `/statusline off`
 - เปิดการแสดงผลแถบ: `/statusline on`
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
