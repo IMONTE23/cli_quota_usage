@@ -1,0 +1,10 @@
+# Windows / OS files
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.bak

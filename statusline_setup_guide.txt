@@ -1,0 +1,177 @@
+================================================================================
+คู่มือการติดตั้ง Custom Statusline (Quota แยกตาม Model) สำหรับ Antigravity CLI
+================================================================================
+
+ภาพรวม:
+การตั้งค่านี้จะเพิ่มแถบแสดง Quota แยกตามตระกูลโมเดล (Gemini, Argon, Claude)
+พร้อม Progress Bar สี (เขียว/เหลือง/แดง) และเวลา Reset ไว้ที่ด้านล่างสุดของ CLI
+
+ตัวอย่างการแสดงผล:
+*[Gemini]* 5h:[█████] 99% (2h)  Wk:[████░] 87% (2.9d)  |  [Argon] Wk:[█░░░░] 6% (6d)  |  [Claude] 5h:[█████] 100% (4h)  Wk:[██░░░] 37% (4.2d)
+
+--------------------------------------------------------------------------------
+ขั้นตอนที่ 1: บันทึกสคริปต์ PowerShell บนเครื่องใหม่
+--------------------------------------------------------------------------------
+
+1. สร้างโฟลเดอร์สำหรับเก็บสคริปต์ (เปิด PowerShell แล้วรันคำสั่ง):
+   New-Item -ItemType Directory -Force -Path "$HOME\.gemini\antigravity-cli"
+
+2. สร้างไฟล์ชื่อ:
+   C:\Users\<ชื่อผู้ใช้>\.gemini\antigravity-cli\statusline.ps1
+   (หรือพาธย่อ: %USERPROFILE%\.gemini\antigravity-cli\statusline.ps1)
+
+3. นำโค้ดด้านล่างนี้ไปบันทึกไว้ในไฟล์ statusline.ps1:
+
+[โค้ด statusline.ps1 เริ่มต้น]
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$inputJson = [Console]::In.ReadToEnd()
+if ([string]::IsNullOrWhiteSpace($inputJson)) { exit 0 }
+
+try {
+    $data = $inputJson | ConvertFrom-Json
+} catch {
+    exit 0
+}
+
+# กำหนดขนาดหน้าจอและรหัสสี ANSI
+$termWidth = if ($null -ne $data.terminal_width -and [int]$data.terminal_width -gt 0) { [int]$data.terminal_width } else { 120 }
+$barWidth = if ($termWidth -ge 120) { 5 } else { 4 }
+$showResetTime = ($termWidth -ge 130)
+
+$esc = [char]27
+$cReset  = "$esc[0m"
+$cBold   = "$esc[1m"
+$cDim    = "$esc[90m"
+$cCyan   = "$esc[1;36m"
+$cGreen  = "$esc[92m"
+$cYellow = "$esc[93m"
+$cRed    = "$esc[91m"
+
+function Format-Bar([double]$frac, [int]$width) {
+    $filled = [int][math]::Round($frac * $width)
+    if ($frac -gt 0 -and $filled -eq 0) { $filled = 1 }
+    $empty = $width - $filled
+    
+    $color = if ($frac -ge 0.5) { $cGreen } elseif ($frac -ge 0.2) { $cYellow } else { $cRed }
+    $bar = ([string]::new([char]0x2588, $filled)) + $cDim + ([string]::new([char]0x2591, $empty)) + $cReset
+    return "${color}[${bar}${color}]${cReset}"
+}
+
+function Format-Time([int]$sec) {
+    if ($sec -le 0) { return "0m" }
+    $h = [math]::Floor($sec / 3600)
+    $m = [math]::Floor(($sec % 3600) / 60)
+    if ($h -ge 24) {
+        $d = [math]::Round($h / 24, 1)
+        return "${d}d"
+    }
+    if ($h -gt 0) { return "${h}h" }
+    return "${m}m"
+}
+
+# จัดกลุ่มตามตระกูลโมเดล
+$models = [ordered]@{
+    "Gemini" = [ordered]@{}
+    "Argon"  = [ordered]@{}
+    "Claude" = [ordered]@{}
+}
+
+if ($null -ne $data.quota) {
+    foreach ($prop in $data.quota.PSObject.Properties) {
+        $k = $prop.Name
+        $val = $prop.Value
+        if ($k -match '^gemini-argon') {
+            $win = if ($k -match '5h') { "5h" } elseif ($k -match 'weekly') { "Wk" } else { $k }
+            $models["Argon"][$win] = $val
+        } elseif ($k -match '^gemini') {
+            $win = if ($k -match '5h') { "5h" } elseif ($k -match 'weekly') { "Wk" } else { $k }
+            $models["Gemini"][$win] = $val
+        } elseif ($k -match '^(3p|claude)') {
+            $win = if ($k -match '5h') { "5h" } elseif ($k -match 'weekly') { "Wk" } else { $k }
+            $models["Claude"][$win] = $val
+        } else {
+            $prefix = ($k -split '-')[0]
+            if (-not $models.Contains($prefix)) { $models[$prefix] = [ordered]@{} }
+            $models[$prefix][$k] = $val
+        }
+    }
+}
+
+$activeModel = if ($null -ne $data.model.display_name) { $data.model.display_name } else { "" }
+
+$modelOutputs = @()
+foreach ($mName in $models.Keys) {
+    $buckets = $models[$mName]
+    if ($buckets.Count -eq 0) { continue }
+    
+    $isActive = $false
+    if ($mName -eq "Argon" -and $activeModel -match "Argon") { $isActive = $true }
+    elseif ($mName -eq "Gemini" -and $activeModel -match "Gemini" -and $activeModel -notmatch "Argon") { $isActive = $true }
+    elseif ($mName -eq "Claude" -and ($activeModel -match "Claude" -or $activeModel -match "3p")) { $isActive = $true }
+    
+    $badge = if ($isActive) { "${cCyan}*[$mName]*${cReset}" } else { "${cBold}[$mName]${cReset}" }
+    
+    $partList = @()
+    foreach ($w in $buckets.Keys) {
+        $info = $buckets[$w]
+        $frac = if ($null -ne $info.remaining_fraction) { [math]::Max(0.0, [math]::Min(1.0, [double]$info.remaining_fraction)) } else { 0.0 }
+        $pct = [int][math]::Round($frac * 100)
+        $bar = Format-Bar $frac $barWidth
+        
+        $pctColor = if ($frac -ge 0.5) { $cGreen } elseif ($frac -ge 0.2) { $cYellow } else { $cRed }
+        $pctStr = "${pctColor}${pct}%${cReset}"
+
+        if ($showResetTime) {
+            $resetStr = Format-Time ([int]$info.reset_in_seconds)
+            $partList += "${w}:${bar} ${pctStr} ${cDim}(${resetStr})${cReset}"
+        } else {
+            $partList += "${w}:${bar} ${pctStr}"
+        }
+    }
+    
+    $modelOutputs += "${badge} " + ($partList -join "  ")
+}
+
+if ($modelOutputs.Count -eq 0) {
+    Write-Output "Quota: N/A"
+} else {
+    Write-Output ($modelOutputs -join "  ${cDim}|${cReset}  ")
+}
+[โค้ด statusline.ps1 สิ้นสุด]
+
+--------------------------------------------------------------------------------
+ขั้นตอนที่ 2: แก้ไขไฟล์ settings.json
+--------------------------------------------------------------------------------
+
+1. เปิดไฟล์ตั้งค่าของ Antigravity CLI:
+   C:\Users\<ชื่อผู้ใช้>\.gemini\antigravity-cli\settings.json
+   (หรือกด Win + R แล้วพิมพ์: %USERPROFILE%\.gemini\antigravity-cli\settings.json)
+
+2. เพิ่มบล็อก "statusLine" เข้าไปในไฟล์ JSON ดังนี้:
+
+{
+  "statusLine": {
+    "type": "command",
+    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/<ชื่อผู้ใช้>/.gemini/antigravity-cli/statusline.ps1",
+    "enabled": true,
+    "stack_with_default": true
+  }
+}
+
+*ข้อควรระวัง:
+- เปลี่ยน <ชื่อผู้ใช้> เป็นชื่อโฟลเดอร์ User บน Windows ของเครื่องนั้น
+- ใน JSON ให้ใช้เครื่องหมาย slash (/) คั่นระหว่างชื่อโฟลเดอร์เสมอ
+- "stack_with_default": true สำคัญมาก เพื่อให้แสดงแถบข้อมูลระบบเดิมไว้ด้านบน และเอาแถบ Quota นี้มาแสดงเป็นบรรทัดที่สองด้านล่าง
+
+--------------------------------------------------------------------------------
+ขั้นตอนที่ 3: เปิดใช้งานและทดสอบ
+--------------------------------------------------------------------------------
+
+1. เปิด Command Prompt หรือ Terminal แล้วรัน CLI:
+   agy
+
+2. แถบ Quota ด้านล่างสุดจะแสดงแยกตามแต่ละโมเดลทันที
+3. คำสั่งควบคุม Statusline ผ่าน CLI เพิ่มเติม:
+   - ปิดแถบ: /statusline off
+   - เปิดแถบ: /statusline on
+================================================================================
