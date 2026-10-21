@@ -23,6 +23,7 @@ Custom statusline สำหรับ **Google Antigravity CLI (`agy`)** แส�
 - **Active Model Highlight**: ไฮไลต์ชื่อโมเดลที่กำลังใช้งานอยู่ด้วยเครื่องหมายดอกจันและสี Cyan เช่น `*[Gemini]*`
 - **Reset Countdown**: แสดงเวลาคงเหลือก่อนรอบรีเซ็ตโควตา (เช่น `2h`, `2.9d`)
 - **Adaptive Layout**: ปรับขนาดแถบและความละเอียดอัตโนมัติตามความกว้างหน้าจอเทอร์มินัล (Terminal Width)
+- **Cross-Platform**: รองรับทั้ง **macOS**, **Linux** (ผ่าน Python 3) และ **Windows** (ผ่าน PowerShell)
 - **Non-Destructive**: ทำงานควบคู่กับแถบสถานะเริ่มต้นของ CLI (`stack_with_default: true`)
 
 ---
@@ -31,8 +32,10 @@ Custom statusline สำหรับ **Google Antigravity CLI (`agy`)** แส�
 
 ```text
 cli_quota_usage/
-├── statusline.ps1          # สคริปต์หลักสำหรับประมวลผล JSON และเรนเดอร์ Statusline
-├── install.ps1             # สคริปต์ติดตั้งอัตโนมัติ (คัดลอกไฟล์และอัปเดต settings.json)
+├── statusline.py           # สคริปต์ Python สำหรับ macOS / Linux (และ Windows ที่มี Python)
+├── install.sh              # สคริปต์ติดตั้งอัตโนมัติสำหรับ macOS / Linux
+├── statusline.ps1          # สคริปต์ PowerShell สำหรับ Windows
+├── install.ps1             # สคริปต์ติดตั้งอัตโนมัติสำหรับ Windows
 ├── settings.example.json   # ตัวอย่างคอนฟิก settings.json
 ├── statusline_setup_guide.txt # เอกสารคู่มืออ้างอิงเดิม
 └── README.md               # เอกสารแนะนำการใช้งาน
@@ -42,50 +45,63 @@ cli_quota_usage/
 
 ## 🚀 การติดตั้ง (Installation)
 
-### วิธีที่ 1: ติดตั้งอัตโนมัติด้วยสคริปต์ (แนะนำ)
+### สำหรับ macOS / Linux
 
+#### วิธีที่ 1: ติดตั้งอัตโนมัติ (แนะนำ)
+เปิด Terminal ในโฟลเดอร์โปรเจ็คแล้วรันคำสั่ง:
+
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+#### วิธีที่ 2: ติดตั้งด้วยตนเอง (Manual)
+1. คัดลอกสคริปต์:
+   ```bash
+   mkdir -p ~/.gemini/antigravity-cli
+   cp statusline.py ~/.gemini/antigravity-cli/statusline.py
+   chmod +x ~/.gemini/antigravity-cli/statusline.py
+   ```
+2. แก้ไขไฟล์ `~/.gemini/antigravity-cli/settings.json` เพิ่มบล็อก `"statusLine"`:
+   ```json
+   {
+     "statusLine": {
+       "type": "command",
+       "command": "/Users/<USERNAME>/.gemini/antigravity-cli/statusline.py",
+       "enabled": true,
+       "stack_with_default": true
+     }
+   }
+   ```
+
+---
+
+### สำหรับ Windows
+
+#### วิธีที่ 1: ติดตั้งอัตโนมัติ (แนะนำ)
 เปิด PowerShell ในโฟลเดอร์โปรเจ็คแล้วรันคำสั่ง:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-สคริปต์จะทำการ:
-1. สร้างโฟลเดอร์ `$HOME\.gemini\antigravity-cli\` ให้โดยอัตโนมัติ
-2. คัดลอก `statusline.ps1` ไปยังโฟลเดอร์เป้าหมาย
-3. อัปเดตการตั้งค่า `statusLine` ใน `settings.json` โดยไม่กระทบคอนฟิกอื่น
-
----
-
-### วิธีที่ 2: ติดตั้งด้วยตนเอง (Manual Installation)
-
-#### 1. คัดลอกสคริปต์ไปยังโฟลเดอร์ Antigravity CLI
-เปิด PowerShell แล้วรัน:
-```powershell
-New-Item -ItemType Directory -Force -Path "$HOME\.gemini\antigravity-cli"
-Copy-Item -Path ".\statusline.ps1" -Destination "$HOME\.gemini\antigravity-cli\statusline.ps1"
-```
-
-#### 2. แก้ไขไฟล์ `settings.json`
-เปิดไฟล์:
-```powershell
-notepad "$HOME\.gemini\antigravity-cli\settings.json"
-```
-
-เพิ่มบล็อก `"statusLine"` เข้าไปดังนี้ (แทนที่ `<USERNAME>` ด้วยชื่อ User Windows ของคุณ):
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/<USERNAME>/.gemini/antigravity-cli/statusline.ps1",
-    "enabled": true,
-    "stack_with_default": true
-  }
-}
-```
-
-> **ข้อควรระวัง:** ใน JSON ให้ใช้เครื่องหมาย Slash (`/`) เสมอสำหรับพาธไฟล์
+#### วิธีที่ 2: ติดตั้งด้วยตนเอง (Manual)
+1. คัดลอกสคริปต์:
+   ```powershell
+   New-Item -ItemType Directory -Force -Path "$HOME\.gemini\antigravity-cli"
+   Copy-Item -Path ".\statusline.ps1" -Destination "$HOME\.gemini\antigravity-cli\statusline.ps1"
+   ```
+2. แก้ไขไฟล์ `$HOME\.gemini\antigravity-cli\settings.json` เพิ่มบล็อก `"statusLine"`:
+   ```json
+   {
+     "statusLine": {
+       "type": "command",
+       "command": "powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/<USERNAME>/.gemini/antigravity-cli/statusline.ps1",
+       "enabled": true,
+       "stack_with_default": true
+     }
+   }
+   ```
 
 ---
 
